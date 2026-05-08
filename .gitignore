@@ -1,0 +1,38 @@
+# Kernel module build artifacts
+*.ko
+*.ko.gz
+*.o
+*.o.cmd
+*.mod
+*.mod.c
+*.mod.o
+*.a
+*.s
+*.symversions
+*.order
+*.symvers
+modules.order
+Module.symvers
+Module.markers
+
+# Build directories
+/tmp/
+
+# Editor/IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.tags
+tags
+TAGS
+ctags
+
+# Backups
+*.bak
+*.orig
+
+# Misc
+*.dwo
+*.dwz
