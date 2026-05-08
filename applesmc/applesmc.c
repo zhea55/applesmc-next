@@ -1538,7 +1538,7 @@ static int __init applesmc_init(void)
 		goto out_light_sysfs;
 
 	/* FIXME: Deprecated hwmon interface */
-	hwmon_dev = hwmon_device_register(&pdev->dev);
+	hwmon_dev = hwmon_device_register_with_info(&pdev->dev, "applesmc", NULL, NULL, NULL);
 	if (IS_ERR(hwmon_dev)) {
 		ret = PTR_ERR(hwmon_dev);
 		goto out_light_ledclass;

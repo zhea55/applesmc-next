@@ -23,6 +23,7 @@
 #include <linux/jiffies.h>
 #include <linux/delay.h>
 #include <linux/power_supply.h>
+#include <linux/platform_device.h>
 #include <linux/platform_data/x86/apple.h>
 #include <acpi/battery.h>
 
@@ -101,11 +102,7 @@ struct acpi_sbs {
 
 #define to_acpi_sbs(x) power_supply_get_drvdata(x)
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,2,0)
-static void acpi_sbs_remove(struct acpi_device *device);
-#else
-static int acpi_sbs_remove(struct acpi_device *device);
-#endif
+static void acpi_sbs_remove(struct platform_device *pdev);
 static int acpi_battery_get_state(struct acpi_battery *battery);
 
 static inline int battery_scale(int log)
@@ -617,19 +614,6 @@ static void battery_hook_remove_sbs(struct acpi_sbs *sbs)
 	mutex_unlock(&hook_mutex);
 }
 
-static void __exit battery_hook_exit(void)
-{
-	struct acpi_battery_hook *hook;
-	struct acpi_battery_hook *ptr;
-
-	pr_debug("%s\n", __FUNCTION__);
-
-	list_for_each_entry_safe(hook, ptr, &battery_hook_list, list) {
-		__battery_hook_unregister(hook, 1);
-	}
-	mutex_destroy(&hook_mutex);
-}
-
 static int acpi_battery_read(struct acpi_battery *battery)
 {
 	int result = 0, saved_present = battery->present;
@@ -780,8 +764,9 @@ static void acpi_sbs_callback(void *context)
 	}
 }
 
-static int acpi_sbs_add(struct acpi_device *device)
+static int acpi_sbs_probe(struct platform_device *pdev)
 {
+	struct acpi_device *device = ACPI_COMPANION(&pdev->dev);
 	struct acpi_sbs *sbs;
 	int result = 0;
 	int id;
@@ -796,15 +781,10 @@ static int acpi_sbs_add(struct acpi_device *device)
 
 	mutex_init(&sbs->lock);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
+	platform_set_drvdata(pdev, sbs);
+
 	sbs->hc = acpi_driver_data(acpi_dev_parent(device));
-#else
-	sbs->hc = acpi_driver_data(device->parent);
-#endif
 	sbs->device = device;
-	strcpy(acpi_device_name(device), ACPI_SBS_DEVICE_NAME);
-	strcpy(acpi_device_class(device), ACPI_SBS_CLASS);
-	device->driver_data = sbs;
 
 	result = acpi_charger_add(sbs);
 	if (result && result != -ENODEV)
@@ -826,34 +806,24 @@ static int acpi_sbs_add(struct acpi_device *device)
 		acpi_battery_add(sbs, 0);
 
 	acpi_smbus_register_callback(sbs->hc, acpi_sbs_callback, sbs);
+	pr_info("probe completed successfully\n");
+	return 0;
+
 end:
-	if (result)
-		acpi_sbs_remove(device);
+	acpi_sbs_remove(pdev);
 	return result;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,2,0)
-static void acpi_sbs_remove(struct acpi_device *device)
-#else
-static int acpi_sbs_remove(struct acpi_device *device)
-#endif
+static void acpi_sbs_remove(struct platform_device *pdev)
 {
 	struct acpi_sbs *sbs;
 	int id;
 
-	if (!device)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,2,0)
+	if (!pdev)
 		return;
-#else
-		return -EINVAL;
-#endif
-	sbs = acpi_driver_data(device);
+	sbs = platform_get_drvdata(pdev);
 	if (!sbs)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,2,0)
 		return;
-#else
-		return -EINVAL;
-#endif
 	mutex_lock(&sbs->lock);
 	acpi_smbus_unregister_callback(sbs->hc);
 	for (id = 0; id < MAX_SBS_BAT; ++id)
@@ -863,20 +833,13 @@ static int acpi_sbs_remove(struct acpi_device *device)
 	mutex_unlock(&sbs->lock);
 	mutex_destroy(&sbs->lock);
 	kfree(sbs);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,2,0)
-	return;
-#else
-	return 0;
-#endif
 }
 
 #ifdef CONFIG_PM_SLEEP
 static int acpi_sbs_resume(struct device *dev)
 {
-	struct acpi_sbs *sbs;
-	if (!dev)
-		return -EINVAL;
-	sbs = to_acpi_device(dev)->driver_data;
+	struct acpi_sbs *sbs = platform_get_drvdata(to_platform_device(dev));
+
 	acpi_sbs_callback(sbs);
 	return 0;
 }
@@ -886,26 +849,14 @@ static int acpi_sbs_resume(struct device *dev)
 
 static SIMPLE_DEV_PM_OPS(acpi_sbs_pm, NULL, acpi_sbs_resume);
 
-static struct acpi_driver acpi_sbs_driver = {
-	.name = "sbs",
-	.class = ACPI_SBS_CLASS,
-	.ids = sbs_device_ids,
-	.ops = {
-		.add = acpi_sbs_add,
-		.remove = acpi_sbs_remove,
-		},
-	.drv.pm = &acpi_sbs_pm,
+static struct platform_driver acpi_sbs_driver = {
+	.probe = acpi_sbs_probe,
+	.remove = acpi_sbs_remove,
+	.driver = {
+		.name = "acpi-sbs",
+		.acpi_match_table = sbs_device_ids,
+		.pm = &acpi_sbs_pm,
+	},
 };
 
-static int __init acpi_sbs_driver_init(void)
-{
-        return acpi_bus_register_driver(&acpi_sbs_driver);
-}
-module_init(acpi_sbs_driver_init);
-
-static void __exit acpi_sbs_driver_exit(void)
-{
-        acpi_bus_unregister_driver(&acpi_sbs_driver);
-	battery_hook_exit();
-}
-module_exit(acpi_sbs_driver_exit);
+module_platform_driver(acpi_sbs_driver);
