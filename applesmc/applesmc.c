@@ -40,7 +40,6 @@
 #include <linux/bits.h>
 
 #include <acpi/battery.h>
-#include <acpi/sbs.h>
 
 /* data port used by Apple SMC */
 #define APPLESMC_DATA_PORT	0x300
@@ -1281,11 +1280,7 @@ static DEVICE_ATTR_RO(charge_control_start_threshold);
 static DEVICE_ATTR_RW(charge_control_end_threshold);
 static DEVICE_ATTR_RW(charge_control_full_threshold);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,2,0)
 static int applesmc_battery_add(struct power_supply *battery, struct acpi_battery_hook* hook)
-#else
-static int applesmc_battery_add(struct power_supply *battery)
-#endif
 {
 	pr_debug("Battery added: %s\n", battery->desc->name);
 
@@ -1313,11 +1308,7 @@ out:
 	return -ENODEV;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,2,0)
 static int applesmc_battery_remove(struct power_supply *battery, struct acpi_battery_hook* hook)
-#else
-static int applesmc_battery_remove(struct power_supply *battery)
-#endif
 {
 	pr_debug("Battery removed: %s\n", battery->desc->name);
 
@@ -1338,12 +1329,12 @@ static struct acpi_battery_hook battery_hook = {
 
 static void applesmc_battery_init(void)
 {
-	sbs_hook_register(&battery_hook);
+	battery_hook_register(&battery_hook);
 }
 
 static void applesmc_battery_exit(void)
 {
-	sbs_hook_unregister(&battery_hook);
+	battery_hook_unregister(&battery_hook);
 }
 
 /* Create accelerometer resources */
@@ -1538,7 +1529,7 @@ static int __init applesmc_init(void)
 		goto out_light_sysfs;
 
 	/* FIXME: Deprecated hwmon interface */
-	hwmon_dev = hwmon_device_register_with_info(&pdev->dev, "applesmc", NULL, NULL, NULL);
+	hwmon_dev = hwmon_device_register(&pdev->dev);
 	if (IS_ERR(hwmon_dev)) {
 		ret = PTR_ERR(hwmon_dev);
 		goto out_light_ledclass;
