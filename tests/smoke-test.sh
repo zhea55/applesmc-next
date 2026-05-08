@@ -320,65 +320,56 @@ fi
 
 section_level 2 "Runtime Module Verification"
 
-if [ "$(uname -m)" = "x86_64" ] && dmesg 2>/dev/null | grep -qi "apple" ; then
-  # We might be on Apple hardware
-  if lsmod 2>/dev/null | grep -q applesmc; then
-    info "applesmc module currently loaded. Testing runtime interface..."
+if [ "$(uname -m)" = "x86_64" ] && [ -d /sys/devices/platform/applesmc.768 ] ; then
+  # We are on Apple hardware with the platform device present
+  info "applesmc platform device detected. Testing runtime interface..."
 
-    # Check platform device exists
-    PLATFORM_DEV="/sys/devices/platform/applesmc.768"
-    if [ -d "$PLATFORM_DEV" ]; then
-      pass "Platform device $PLATFORM_DEV exists"
+  PLATFORM_DEV="/sys/devices/platform/applesmc.768"
+  pass "Platform device $PLATFORM_DEV exists"
 
-      # Check info nodes
-      for f in name key_count key_at_index key_at_index_name \
-               key_at_index_type key_at_index_data_length key_at_index_data; do
-        [ -f "$PLATFORM_DEV/$f" ] && pass "sysfs: $f exists" \
-          || fail "sysfs: $f missing"
-      done
+  # Check info nodes
+  for f in name key_count key_at_index key_at_index_name \
+           key_at_index_type key_at_index_data_length key_at_index_data; do
+    [ -f "$PLATFORM_DEV/$f" ] && pass "sysfs: $f exists" \
+      || fail "sysfs: $f missing"
+  done
 
-      # Check temperature sensors
-      TEMP_INPUTS=$(ls "$PLATFORM_DEV"/temp*_input 2>/dev/null | wc -l)
-      TEMP_LABELS=$(ls "$PLATFORM_DEV"/temp*_label 2>/dev/null | wc -l)
-      [ "$TEMP_INPUTS" -gt 0 ] && pass "$TEMP_INPUTS temperature input sensors" \
-        || pass "No temperature sensors (expected on non-Apple)"
-      [ "$TEMP_LABELS" -eq "$TEMP_INPUTS" ] && \
-        pass "temp*_label count matches temp*_input" || \
-        fail "temp*_label ($TEMP_LABELS) != temp*_input ($TEMP_INPUTS)"
+  # Check temperature sensors
+  TEMP_INPUTS=$(ls "$PLATFORM_DEV"/temp*_input 2>/dev/null | wc -l)
+  TEMP_LABELS=$(ls "$PLATFORM_DEV"/temp*_label 2>/dev/null | wc -l)
+  [ "$TEMP_INPUTS" -gt 0 ] && pass "$TEMP_INPUTS temperature input sensors" \
+    || pass "No temperature sensors (expected on non-Apple)"
+  [ "$TEMP_LABELS" -eq "$TEMP_INPUTS" ] && \
+    pass "temp*_label count matches temp*_input" || \
+    fail "temp*_label ($TEMP_LABELS) != temp*_input ($TEMP_INPUTS)"
 
-      # Check fan sensors
-      FAN_INPUTS=$(ls "$PLATFORM_DEV"/fan*_input 2>/dev/null | wc -l)
-      [ "$FAN_INPUTS" -gt 0 ] && pass "$FAN_INPUTS fan sensors" \
-        || pass "No fan sensors (expected on non-Apple)"
+  # Check fan sensors
+  FAN_INPUTS=$(ls "$PLATFORM_DEV"/fan*_input 2>/dev/null | wc -l)
+  [ "$FAN_INPUTS" -gt 0 ] && pass "$FAN_INPUTS fan sensors" \
+    || pass "No fan sensors (expected on non-Apple)"
 
-      # Check battery sysfs (if BAT0 exists)
-      if [ -d "/sys/class/power_supply/BAT0" ]; then
-        for f in charge_control_end_threshold charge_control_start_threshold \
-                 charge_control_full_threshold; do
-          [ -f "/sys/class/power_supply/BAT0/$f" ] && \
-            pass "Battery: $f exists" || \
-            fail "Battery: $f missing"
-        done
+  # Check battery sysfs (if BAT0 exists)
+  if [ -d "/sys/class/power_supply/BAT0" ]; then
+    for f in charge_control_end_threshold charge_control_start_threshold \
+             charge_control_full_threshold; do
+      [ -f "/sys/class/power_supply/BAT0/$f" ] && \
+        pass "Battery: $f exists" || \
+        fail "Battery: $f missing"
+    done
 
-        # Try reading charge_control_end_threshold
-        VAL=$(cat /sys/class/power_supply/BAT0/charge_control_end_threshold 2>/dev/null || true)
-        if [ -n "$VAL" ] && [ "$VAL" -ge 10 ] 2>/dev/null && [ "$VAL" -le 100 ] 2>/dev/null; then
-          pass "charge_control_end_threshold = $VAL (valid range 10-100)"
-        elif [ -n "$VAL" ]; then
-          fail "charge_control_end_threshold = $VAL (out of range)"
-        fi
-
-        VAL=$(cat /sys/class/power_supply/BAT0/charge_control_start_threshold 2>/dev/null || true)
-        [ "$VAL" = "0" ] && pass "charge_control_start_threshold = 0 (not implemented)" \
-          || fail "charge_control_start_threshold unexpected: $VAL"
-      else
-        skip "No BAT0 device found (not running on Apple hardware?)"
-      fi
-    else
-      skip "Platform device $PLATFORM_DEV not found"
+    # Try reading charge_control_end_threshold
+    VAL=$(cat /sys/class/power_supply/BAT0/charge_control_end_threshold 2>/dev/null || true)
+    if [ -n "$VAL" ] && [ "$VAL" -ge 10 ] 2>/dev/null && [ "$VAL" -le 100 ] 2>/dev/null; then
+      pass "charge_control_end_threshold = $VAL (valid range 10-100)"
+    elif [ -n "$VAL" ]; then
+      fail "charge_control_end_threshold = $VAL (out of range)"
     fi
+
+    VAL=$(cat /sys/class/power_supply/BAT0/charge_control_start_threshold 2>/dev/null || true)
+    [ "$VAL" = "0" ] && pass "charge_control_start_threshold = 0 (not implemented)" \
+      || fail "charge_control_start_threshold unexpected: $VAL"
   else
-    skip "applesmc module not loaded (not on Apple hardware)"
+    skip "No BAT0 device found (not running on Apple hardware?)"
   fi
 else
   skip "Not on Apple hardware; runtime tests skipped"
