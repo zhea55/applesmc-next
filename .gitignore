@@ -3,6 +3,7 @@
 *.ko.gz
 *.o
 *.o.cmd
+.*.cmd
 *.mod
 *.mod.c
 *.mod.o
@@ -36,3 +37,6 @@ ctags
 # Misc
 *.dwo
 *.dwz
+
+# Project-local agent config
+.claude/

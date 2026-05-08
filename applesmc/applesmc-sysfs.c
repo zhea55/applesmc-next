@@ -38,16 +38,13 @@ static ssize_t applesmc_name_show(struct device *dev,
 static ssize_t applesmc_key_count_show(struct device *dev,
 				       struct device_attribute *attr, char *buf)
 {
-	u8 buffer[4];
-	u32 count;
+	unsigned int count;
 	int ret;
 
-	ret = applesmc_read_key(KEY_COUNT_KEY, buffer, 4);
+	ret = read_register_count(&count);
 	if (ret)
 		return ret;
 
-	count = ((u32)buffer[0] << 24) | ((u32)buffer[1] << 16) |
-		((u32)buffer[2] << 8) | buffer[3];
 	return sysfs_emit(buf, "%d\n", count);
 }
 
@@ -226,7 +223,7 @@ static ssize_t applesmc_store_fan_speed(struct device *dev,
 	u8 buffer[2];
 	int ret;
 
-	if (kstrtoul(buf, 10, &speed) < 0 || speed >= 0x4000)
+	if (kstrtoul(buf, 10, &speed) < 0 || speed >= APPLESMC_FAN_SPEED_14BIT_MAX)
 		return -EINVAL;
 
 	scnprintf(newkey, sizeof(newkey), fan_speed_fmt[to_option(attr)],
@@ -321,20 +318,17 @@ static ssize_t applesmc_light_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
 {
 	const struct applesmc_entry *entry;
-	static int data_length;
+	int data_length;
 	int ret;
 	u8 left = 0, right = 0;
 	u8 buffer[10];
 
-	if (!data_length) {
-		entry = applesmc_get_entry_by_key(LIGHT_SENSOR_LEFT_KEY);
-		if (IS_ERR(entry))
-			return PTR_ERR(entry);
-		if (entry->len > 10)
-			return -ENXIO;
-		data_length = entry->len;
-		pr_info("light sensor data length set to %d\n", data_length);
-	}
+	entry = applesmc_get_entry_by_key(LIGHT_SENSOR_LEFT_KEY);
+	if (IS_ERR(entry))
+		return PTR_ERR(entry);
+	data_length = entry->len;
+	if (data_length > 10)
+		return -ENXIO;
 
 	ret = applesmc_read_key(LIGHT_SENSOR_LEFT_KEY, buffer, data_length);
 	if (ret)

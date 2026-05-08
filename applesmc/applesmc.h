@@ -60,6 +60,13 @@
 /* Fan speed register formats */
 extern const char *const fan_speed_fmt[];
 
+/* Maximum number of fans and tight-spin iterations */
+#define APPLESMC_MAX_FANS		10
+#define APPLESMC_SPIN_TIGHT		200
+
+/* Fan speed is encoded in 14 bits: max value = 0x3FFF (16383) */
+#define APPLESMC_FAN_SPEED_14BIT_MAX	0x4000
+
 /* Timeouts */
 #define INIT_TIMEOUT_MSECS		5000
 #define INIT_WAIT_MSECS			50

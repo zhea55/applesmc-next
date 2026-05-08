@@ -112,8 +112,8 @@ static int applesmc_init_smcreg_try(void)
 	if (ret)
 		return ret;
 	s->fan_count = tmp[0];
-	if (s->fan_count > 10)
-		s->fan_count = 10;
+	if (s->fan_count > APPLESMC_MAX_FANS)
+		s->fan_count = APPLESMC_MAX_FANS;
 
 	ret = applesmc_get_lower_bound(&s->temp_begin, "T");
 	if (ret)
@@ -310,43 +310,44 @@ static int __init applesmc_init(void)
 	}
 
 	ret = platform_driver_register(&applesmc_driver);
-	if (ret)
+	if (unlikely(ret))
 		goto out_region;
 
 	pdev = platform_device_register_simple("applesmc",
 					       APPLESMC_DATA_PORT, NULL, 0);
-	if (IS_ERR(pdev)) {
+	if (unlikely(IS_ERR(pdev))) {
 		ret = PTR_ERR(pdev);
 		goto out_driver;
 	}
 
-	/* Register cache is populated by applesmc_probe via platform driver */
-	ret = applesmc_init_smcreg();
-	if (ret)
-		goto out_device;
+	/*
+	 * Register cache is already populated by applesmc_probe() which was
+	 * triggered by platform_device_register_simple() above.
+	 * No need to call applesmc_init_smcreg() again.
+	 */
 
 	ret = applesmc_create_nodes(info_group, 1);
-	if (ret)
+	if (unlikely(ret))
 		goto out_smcreg;
 
 	ret = applesmc_create_nodes(fan_group, smcreg.fan_count);
-	if (ret)
+	if (unlikely(ret))
 		goto out_info;
 
 	ret = applesmc_create_nodes(temp_group, smcreg.index_count);
-	if (ret)
+	if (unlikely(ret))
 		goto out_fans;
 
 	ret = applesmc_create_accelerometer();
-	if (ret)
+	if (unlikely(ret))
 		goto out_temperature;
 
 	ret = applesmc_create_light_sensor();
-	if (ret)
+	if (unlikely(ret))
 		goto out_accelerometer;
 
 	ret = applesmc_create_key_backlight();
-	if (ret)
+	if (unlikely(ret))
 		goto out_light_sysfs;
 
 	/*
@@ -358,7 +359,7 @@ static int __init applesmc_init(void)
 	hwmon_dev = hwmon_device_register_with_groups(&pdev->dev,
 						      "applesmc",
 						      NULL, NULL);
-	if (IS_ERR(hwmon_dev)) {
+	if (unlikely(IS_ERR(hwmon_dev))) {
 		ret = PTR_ERR(hwmon_dev);
 		goto out_light_ledclass;
 	}
@@ -381,7 +382,6 @@ out_info:
 	applesmc_destroy_nodes(info_group);
 out_smcreg:
 	applesmc_destroy_smcreg();
-out_device:
 	platform_device_unregister(pdev);
 out_driver:
 	platform_driver_unregister(&applesmc_driver);

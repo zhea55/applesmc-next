@@ -134,6 +134,7 @@ int applesmc_create_accelerometer(void)
 free_idev:
 	input_free_device(applesmc_idev);
 	applesmc_idev = NULL;
+	smcreg.has_accelerometer = false;
 remove_sysfs:
 	applesmc_destroy_nodes(accelerometer_group);
 out:
@@ -146,7 +147,8 @@ void applesmc_release_accelerometer(void)
 	if (!smcreg.has_accelerometer)
 		return;
 
-	input_unregister_device(applesmc_idev);
+	if (applesmc_idev)
+		input_unregister_device(applesmc_idev);
 	applesmc_idev = NULL;
 	applesmc_destroy_nodes(accelerometer_group);
 }

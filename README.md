@@ -30,6 +30,8 @@ The SMC hardware protocol is inherently slow (~120–500 µs per operation). Thr
 - **SMC protocol robustness**: `send_byte` now issues an extra `wait_status(SMC_STATUS_BUSY)` — required by some SMC firmware variants.
 - **Test suite crash**: `smoke-test.sh --build-only` called an undefined `summary` function, exiting 127 despite all tests passing. Fixed.
 - **License inconsistency**: Root and subdirectory `Makefile` used `GPL-2.0-or-later` while all `.c`/`.h` files used `GPL-2.0-only`. Unified to `GPL-2.0-only`.
+- **Accelerometer NULL deref**: `applesmc_release_accelerometer()` could pass NULL to `input_unregister_device()` when init failed partway. Added NULL guard and failure flag.
+- **Light sensor show race**: `applesmc_light_show()` used a `static int` cache without locking. Removed the cache — `applesmc_get_entry_by_key()` already returns O(1) from the register cache.
 
 ## Quick Install
 
@@ -168,17 +170,17 @@ Then configure via `STOP_CHARGE_THRESH_BAT0` etc. in `/etc/tlp.conf`.
 ## Running Tests
 
 ```sh
-make test                                    # Build + functional equivalence (no hardware)
-bash tests/smoke-test.sh --build-only        # Build & static checks only
-bash tests/smoke-test.sh --static            # Build + functional equivalence
+make test                                    # Full: build + runtime (Apple HW only)
+bash tests/smoke-test.sh --build-only        # Build & static checks only (no sudo)
 sudo bash tests/smoke-test.sh                # All levels including runtime (Apple HW only)
 ```
 
-| Level | Scope | Hardware |
-|-------|-------|----------|
-| 0 | Build, static analysis, metadata | No |
-| 1 | Functional equivalence vs old code | No |
-| 2 | Runtime sysfs validation | Apple |
+| Level | Scope | Tests | Hardware | Sudo |
+|-------|-------|-------|----------|------|
+| 0 | Build, static analysis, metadata | 34 | No | No |
+| 1 | Functional equivalence vs old code | 0 (reserved) | No | No |
+| 2 | Runtime sysfs validation | 12 | Apple | Yes |
+| **Total** | | **46** | | |
 
 ## Notes
 

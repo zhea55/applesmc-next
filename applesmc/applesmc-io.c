@@ -36,9 +36,9 @@ int wait_status(u8 val, u8 mask)
 	int i;
 
 	/* Phase 1: tight poll — no yielding */
-	for (i = 0; i < 200; i++) {
+	for (i = 0; i < APPLESMC_SPIN_TIGHT; i++) {
 		status = inb(APPLESMC_CMD_PORT);
-		if ((status & mask) == val)
+		if (likely((status & mask) == val))
 			return 0;
 		cpu_relax();
 	}
@@ -46,7 +46,7 @@ int wait_status(u8 val, u8 mask)
 	/* Phase 2: short spinning with 1 µs steps */
 	for (i = 0; i < 32; i++) {
 		status = inb(APPLESMC_CMD_PORT);
-		if ((status & mask) == val)
+		if (likely((status & mask) == val))
 			return 0;
 		udelay(1);
 	}
@@ -54,7 +54,7 @@ int wait_status(u8 val, u8 mask)
 	/* Phase 3: exponential backoff sleep (max ~256 ms) */
 	for (i = 0; i < 16; i++) {
 		status = inb(APPLESMC_CMD_PORT);
-		if ((status & mask) == val)
+		if (likely((status & mask) == val))
 			return 0;
 		usleep_range(APPLESMC_MIN_WAIT << i,
 			     (APPLESMC_MIN_WAIT << i) * 2);
@@ -152,14 +152,14 @@ int read_smc(u8 cmd, const char *key, u8 *buffer, u8 len)
 		u8 s;
 		int spins;
 
-		for (spins = 0; spins < 200; spins++) {
+		for (spins = 0; spins < APPLESMC_SPIN_TIGHT; spins++) {
 			s = inb(APPLESMC_CMD_PORT);
 			if ((s & (SMC_STATUS_AWAITING_DATA | SMC_STATUS_BUSY)) ==
 			    (SMC_STATUS_AWAITING_DATA | SMC_STATUS_BUSY))
 				break;
 			cpu_relax();
 		}
-		if (spins >= 200) {
+		if (spins >= APPLESMC_SPIN_TIGHT) {
 			pr_warn("%.4s: read data[%d] fail\n", key, i);
 			return -EIO;
 		}
