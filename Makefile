@@ -8,6 +8,9 @@ KBUILD_DIR ?= $(KBASE)/build
 all:
 	make -C $(KBUILD_DIR) M=`pwd`
 
+modules_install:
+	make -C $(KBUILD_DIR) M=`pwd` modules_install
+
 clean:
 	cd applesmc && make clean
 	rm -f modules.order Module.symvers .modules.order.cmd .Module.symvers.cmd
